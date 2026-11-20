@@ -6,8 +6,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.routers import auth, usuarios
 
-app = FastAPI(title="Vida Sem Fumaça API", version="0.1.0")
+app = FastAPI(title="Vida Sem Fumaça API", version="0.2.0")
 
 # Só os endereços listados no .env podem chamar a API pelo navegador
 origens = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
@@ -18,6 +19,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth.router)
+app.include_router(usuarios.router)
 
 
 @app.get("/health", tags=["Saúde da API"])
