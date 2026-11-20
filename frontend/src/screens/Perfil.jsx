@@ -7,9 +7,18 @@ export default function Perfil() {
   const { me, patchMe, logout } = useApp()
   const [reason, setReason] = useState(me.reason)
   const [saved, setSaved] = useState(false)
+  const [erro, setErro] = useState('')
+
+  // Salva na API (PATCH /usuarios/me) e mostra o erro, se houver
+  const salvar = async (patch) => {
+    setErro('')
+    const r = await patchMe(patch)
+    if (!r.ok) setErro(r.msg)
+    return r.ok
+  }
 
   const upload = (key, max) => async (e) => {
-    if (e.target.files[0]) patchMe({ [key]: await fileToDataUrl(e.target.files[0], max) })
+    if (e.target.files[0]) salvar({ [key]: await fileToDataUrl(e.target.files[0], max) })
   }
 
   return (
@@ -25,7 +34,8 @@ export default function Perfil() {
         <textarea className="input" rows="3" maxLength="140" value={reason} onChange={(e) => { setReason(e.target.value); setSaved(false) }} />
       </label>
       <label className="photo-pick">Trocar a foto do meu porquê<input type="file" accept="image/*" hidden onChange={upload('reasonPhoto', 480)} /></label>
-      <button className="btn-primary" onClick={() => { patchMe({ reason: reason.trim() || me.reason }); setSaved(true) }}>
+      {erro && <p className="login-msg cadastro-erro" role="alert">{erro}</p>}
+      <button className="btn-primary" onClick={async () => setSaved(await salvar({ reason: reason.trim() || me.reason }))}>
         {saved ? 'Salvo!' : 'Salvar alterações'}
       </button>
 
@@ -36,9 +46,10 @@ export default function Perfil() {
 
       <label className="switch-row">
         Lembretes e mensagens de incentivo
-        <input type="checkbox" checked={!!me.reminders} onChange={async (e) => {
-          if (e.target.checked && 'Notification' in window) await Notification.requestPermission()
-          patchMe({ reminders: e.target.checked })
+        <input type="checkbox" checked={!!me.reminders} onChange={(e) => {
+          const ligar = e.target.checked
+          salvar({ reminders: ligar }) // salva primeiro, sem depender da resposta do navegador
+          if (ligar && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission()
         }} />
       </label>
 

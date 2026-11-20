@@ -1,10 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { CAMPOS_DA_API, api, apagarToken, lerToken, salvarToken, usuarioDaApi } from './api.js'
 import { newId } from './utils.js'
 
-// Camada de dados do protótipo: tudo fica no aparelho (localStorage).
-// Quando a API FastAPI estiver pronta, troque as funções abaixo por chamadas fetch().
-// v2: login passou a ser por e-mail (dados da v1 não são reaproveitados)
-const KEY = 'vsf:v2'
+// Camada de dados do app. Já usa a API em:
+//   cadastro (POST /auth/cadastro), login (POST /auth/login) e perfil (GET/PATCH /usuarios/me).
+// Ainda fica no aparelho (localStorage), até as rotas das próximas sprints:
+//   diário (logs), metas do dia, crises e comunidade.
+// A senha NUNCA é guardada no aparelho: ela vai uma única vez para a API.
+const KEY = 'vsf:v3'
 
 const seedPosts = [
   { id: 'p1', author: 'Ana', type: 'conquista', ago: 'há 2h', apoios: 24, comentarios: 5,
@@ -13,82 +16,135 @@ const seedPosts = [
     text: 'Preciso de ajuda, agora a pouco tive o primeiro momento de crise. Passei pelo momento estressante e estou com muita vontade de usar, o que posso fazer?' },
 ]
 
+const LOCAL_PADRAO = { logs: [], goals: { date: '', done: [] }, following: [], supported: [], crises: [] }
+
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY))
-    if (raw && raw.users) return raw
+    if (raw && raw.locais) return raw
   } catch { /* ignora */ }
-  return { users: {}, session: null, posts: seedPosts }
+  return { locais: {}, posts: seedPosts }
 }
 
 const Ctx = createContext(null)
 export const useApp = () => useContext(Ctx)
 
 export function AppProvider({ children }) {
-  const [db, setDb] = useState(load)
+  const [db, setDb] = useState(load) // dados que ainda ficam no aparelho
+  const [usuario, setUsuario] = useState(null) // dados que vêm da API
+  const [carregando, setCarregando] = useState(() => !!lerToken())
 
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(db)) } catch { /* sem espaço */ }
   }, [db])
 
-  const me = db.session ? db.users[db.session] : null
+  // Ao abrir o app: se já existe um crachá guardado, pergunta à API quem é o usuário
+  useEffect(() => {
+    if (!lerToken()) return
+    api('/usuarios/me')
+      .then((u) => setUsuario(usuarioDaApi(u)))
+      .catch(() => apagarToken())
+      .finally(() => setCarregando(false))
+  }, [])
 
-  const patchMe = (patch) =>
-    setDb((d) => ({ ...d, users: { ...d.users, [d.session]: { ...d.users[d.session], ...patch } } }))
+  // Se a API disser que o crachá venceu (401), volta para a tela de login
+  useEffect(() => {
+    const sair = () => setUsuario(null)
+    window.addEventListener('vsf:sessao-expirada', sair)
+    return () => window.removeEventListener('vsf:sessao-expirada', sair)
+  }, [])
 
-  const api = {
+  const me = usuario ? { ...LOCAL_PADRAO, ...(db.locais[usuario.email] || {}), ...usuario } : null
+
+  // Atualiza só a parte que ainda fica no aparelho
+  const patchLocal = (patch) =>
+    setDb((d) => ({ ...d, locais: { ...d.locais, [usuario.email]: { ...(d.locais[usuario.email] || {}), ...patch } } }))
+
+  const entrar = (resposta) => {
+    salvarToken(resposta.access_token)
+    setUsuario(usuarioDaApi(resposta.usuario))
+  }
+
+  const value = {
     db,
     me,
-    userExists: (email) => !!db.users[email.toLowerCase()],
+    carregando,
 
-    // Futuro: POST /auth/login. Mesma mensagem para e-mail inexistente e senha errada (igual à API).
-    login(email, senha) {
-      const id = email.toLowerCase()
-      const u = db.users[id]
-      if (!u || u.senha !== senha) return { ok: false, msg: 'E-mail ou senha incorretos.' }
-      setDb((d) => ({ ...d, session: id }))
-      return { ok: true }
-    },
-
-    // Futuro: POST /auth/cadastro (envia tudo de uma vez e recebe o token).
-    // PROVISÓRIO: a senha só fica no aparelho enquanto o login não chama a API.
-    // Quando login() e register() chamarem a API, apague a linha "senha" abaixo.
-    register(creds, profile) {
-      const id = creds.email.toLowerCase()
-      const { apelido, ...resto } = profile
-      const user = {
-        email: id,
-        name: apelido,
-        senha: creds.senha,
-        startDate: profile.startDate ?? Date.now(),
-        logs: [],
-        goals: { date: '', done: [] },
-        following: [],
-        supported: [],
-        crises: [],
-        ...resto,
+    // POST /auth/login
+    async login(email, senha) {
+      try {
+        entrar(await api('/auth/login', { method: 'POST', body: { email, senha } }))
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, msg: e.message }
       }
-      setDb((d) => ({ ...d, users: { ...d.users, [id]: user }, session: id }))
     },
 
-    logout: () => setDb((d) => ({ ...d, session: null })),
-    patchMe,
+    // POST /auth/cadastro: as 4 etapas vão de uma vez e a API já devolve o crachá
+    async register(creds, profile) {
+      try {
+        entrar(await api('/auth/cadastro', {
+          method: 'POST',
+          body: {
+            email: creds.email,
+            senha: creds.senha,
+            apelido: profile.apelido,
+            perfil: profile.perfil,
+            cigarros_por_dia: profile.cigsPerDay,
+            preco_maco: profile.packPrice,
+            cigarros_por_maco: 20,
+            dias_sem_fumar: profile.perfil === 'parou' ? profile.quitDays : null,
+            gatilhos: profile.triggers,
+            motivo: profile.reason,
+            foto_motivo: profile.reasonPhoto || null,
+          },
+        }))
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, msg: e.message }
+      }
+    },
 
+    logout() {
+      apagarToken()
+      setUsuario(null)
+    },
+
+    // Separa o que vai para a API (PATCH /usuarios/me) do que fica no aparelho
+    async patchMe(patch) {
+      const paraApi = {}
+      const paraLocal = {}
+      for (const [campo, valor] of Object.entries(patch)) {
+        if (campo in CAMPOS_DA_API) paraApi[CAMPOS_DA_API[campo]] = valor
+        else paraLocal[campo] = valor
+      }
+      if (Object.keys(paraLocal).length) patchLocal(paraLocal)
+      if (!Object.keys(paraApi).length) return { ok: true }
+      try {
+        setUsuario(usuarioDaApi(await api('/usuarios/me', { method: 'PATCH', body: paraApi })))
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, msg: e.message }
+      }
+    },
+
+    // Futuro: POST /registros (Sprint 2)
     addLog(entry) {
-      patchMe({ logs: [...(me.logs || []), { id: newId(), ts: Date.now(), ...entry }] })
-    },
-
-    // Futuro: POST /crises { intensidade, estrategia, resultado }
-    addCrise({ intensidade, estrategia, resultado }) {
-      patchMe({ crises: [...(me.crises || []), { id: newId(), ts: Date.now(), intensidade, estrategia, resultado }] })
+      patchLocal({ logs: [...(me.logs || []), { id: newId(), ts: Date.now(), ...entry }] })
     },
 
     toggleGoal(index, today) {
       const g = me.goals?.date === today ? me.goals : { date: today, done: [] }
       const done = g.done.includes(index) ? g.done.filter((i) => i !== index) : [...g.done, index]
-      patchMe({ goals: { date: today, done } })
+      patchLocal({ goals: { date: today, done } })
     },
 
+    // Futuro: POST /crises (Sprint 3)
+    addCrise({ intensidade, estrategia, resultado }) {
+      patchLocal({ crises: [...(me.crises || []), { id: newId(), ts: Date.now(), intensidade, estrategia, resultado }] })
+    },
+
+    // Futuro: POST /publicacoes, /apoio e /seguir (Sprint 4)
     addPost(text, type, photo) {
       const post = { id: newId(), author: me.name, ts: Date.now(), type, text, photo, apoios: 0, comentarios: 0, mine: true }
       setDb((d) => ({ ...d, posts: [post, ...d.posts] }))
@@ -96,14 +152,14 @@ export function AppProvider({ children }) {
 
     toggleSupport(postId) {
       const has = (me.supported || []).includes(postId)
-      patchMe({ supported: has ? me.supported.filter((i) => i !== postId) : [...(me.supported || []), postId] })
+      patchLocal({ supported: has ? me.supported.filter((i) => i !== postId) : [...(me.supported || []), postId] })
     },
 
     toggleFollow(name) {
       const has = (me.following || []).includes(name)
-      patchMe({ following: has ? me.following.filter((n) => n !== name) : [...(me.following || []), name] })
+      patchLocal({ following: has ? me.following.filter((n) => n !== name) : [...(me.following || []), name] })
     },
   }
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
