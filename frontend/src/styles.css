@@ -55,6 +55,7 @@ small { font-size: 12px; }
 .eye { color: #fff; display: grid; }
 .login-msg { color: #fff; background: rgba(0,0,0,.22); border-radius: 12px; padding: 10px 12px; font-size: 12px; }
 .login-actions { display: flex; flex-direction: column; gap: 18px; }
+.cadastro-erro { background: #fdecec; color: #8a1c1c; border: 1px solid #f0a3a3; }
 
 /* cadastro */
 .cadastro { padding: 54px 18px 24px; display: flex; flex-direction: column; gap: 18px; }

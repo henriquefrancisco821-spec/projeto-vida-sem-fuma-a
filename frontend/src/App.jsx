@@ -12,7 +12,7 @@ import Perfil from './screens/Perfil.jsx'
 const SCREENS = { home: Home, comunidade: Comunidade, sos: Sos, progresso: Progresso, perfil: Perfil }
 
 export default function App() {
-  const { me } = useApp()
+  const { me, carregando } = useApp()
   const [screen, setScreen] = useState('home')
   const [pending, setPending] = useState(null) // e-mail e senha vindos da tela de login, antes do cadastro
 
@@ -22,6 +22,10 @@ export default function App() {
   useEffect(() => {
     if (!me) setScreen('home')
   }, [me])
+
+  if (carregando) {
+    return <div className="app"><p className="empty" role="status">Carregando...</p></div>
+  }
 
   if (!me) {
     return (

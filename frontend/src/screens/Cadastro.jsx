@@ -15,25 +15,32 @@ export default function Cadastro({ creds, onBack, onDone }) {
   const [triggers, setTriggers] = useState([])
   const [reason, setReason] = useState('')
   const [reasonPhoto, setPhoto] = useState('')
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
   const canNext =
     (step === 1 && perfil && apelido.trim().length >= 2) ||
-    (step === 2 && cigsPerDay > 0 && packPrice > 0) ||
+    (step === 2 && cigsPerDay >= 1 && cigsPerDay <= 100 && packPrice >= 1 && packPrice <= 100) ||
     step === 3 ||
     (step === 4 && reason.trim().length > 2)
 
-  const finish = () => {
-    register(creds, {
+  // POST /auth/cadastro (via state.jsx). A API calcula a data de início e a data-alvo.
+  const finish = async () => {
+    setEnviando(true)
+    setErro('')
+    const r = await register(creds, {
       apelido: apelido.trim(),
       perfil,
       cigsPerDay: Number(cigsPerDay),
       packPrice: Number(packPrice),
+      quitDays: Number(quitDays),
       triggers,
       reason: reason.trim(),
       reasonPhoto,
-      startDate: perfil === 'parou' ? Date.now() - Number(quitDays) * 86400000 : Date.now(),
     })
-    onDone?.()
+    setEnviando(false)
+    if (r.ok) onDone?.()
+    else setErro(r.msg)
   }
 
   const next = () => (step < 4 ? setStep(step + 1) : finish())
@@ -87,7 +94,7 @@ export default function Cadastro({ creds, onBack, onDone }) {
               <input className="input" type="number" min="1" max="100" value={cigsPerDay} onChange={(e) => setCigs(e.target.value)} />
             </label>
             <label className="lbl">Preço de um maço (20 cigarros), em R$
-              <input className="input" type="number" min="1" step="0.5" value={packPrice} onChange={(e) => setPrice(e.target.value)} />
+              <input className="input" type="number" min="1" max="100" step="0.5" value={packPrice} onChange={(e) => setPrice(e.target.value)} />
             </label>
             {perfil === 'parou' && (
               <label className="lbl">Há quantos dias você parou?
@@ -119,7 +126,10 @@ export default function Cadastro({ creds, onBack, onDone }) {
         )}
       </div>
 
-      <button className="btn-outline" disabled={!canNext} onClick={next}>{step < 4 ? 'CONTINUAR' : 'COMEÇAR MINHA JORNADA'}</button>
+      {erro && <p className="login-msg cadastro-erro" role="alert">{erro}</p>}
+      <button className="btn-outline" disabled={!canNext || enviando} onClick={next}>
+        {step < 4 ? 'CONTINUAR' : enviando ? 'CRIANDO SUA CONTA...' : 'COMEÇAR MINHA JORNADA'}
+      </button>
     </div>
   )
 }

@@ -4,15 +4,20 @@ import { Icon, LungsMark } from '../components/Icons.jsx'
 import { SENHA_MAX, SENHA_MIN, isEmail } from '../utils.js'
 
 export default function Login({ onRegister }) {
-  const { login, userExists } = useApp()
+  const { login } = useApp()
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
   const [show, setShow] = useState(false)
   const [msg, setMsg] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  const enter = () => {
+  // POST /auth/login (via state.jsx)
+  const enter = async () => {
     if (!isEmail(email.trim()) || !pass) return setMsg('Informe o seu e-mail e a sua senha.')
-    const r = login(email.trim(), pass)
+    setEnviando(true)
+    setMsg('')
+    const r = await login(email.trim().toLowerCase(), pass)
+    setEnviando(false)
     if (!r.ok) setMsg(r.msg)
   }
 
@@ -20,7 +25,6 @@ export default function Login({ onRegister }) {
   const register = () => {
     if (!isEmail(email.trim())) return setMsg('Para cadastrar, informe um e-mail válido.')
     if (pass.length < SENHA_MIN || pass.length > SENHA_MAX) return setMsg(`A senha precisa ter de ${SENHA_MIN} a ${SENHA_MAX} caracteres.`)
-    if (userExists(email.trim())) return setMsg('Este e-mail já está cadastrado. Toque em Entrar.')
     onRegister({ email: email.trim().toLowerCase(), senha: pass })
   }
 
@@ -53,8 +57,8 @@ export default function Login({ onRegister }) {
       </div>
 
       <div className="login-actions">
-        <button className="btn-soft" onClick={enter}>Entrar</button>
-        <button className="btn-soft" onClick={register}>Cadastrar</button>
+        <button className="btn-soft" onClick={enter} disabled={enviando}>{enviando ? 'Entrando...' : 'Entrar'}</button>
+        <button className="btn-soft" onClick={register} disabled={enviando}>Cadastrar</button>
       </div>
     </div>
   )
