@@ -4,6 +4,12 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import Usuario
 
 load_dotenv()
 
@@ -36,5 +42,30 @@ def ler_token(token: str) -> int:
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITMO])
     return int(payload["sub"])
 
-# A função usuario_atual (o "porteiro" das rotas) entra na Peça 4,
-# junto com o models.py da equipe do Banco.
+
+# ---------- Porteiro: protege as rotas que exigem login ----------
+esquema_bearer = HTTPBearer(auto_error=False)
+
+
+def usuario_atual(
+    credenciais: HTTPAuthorizationCredentials | None = Depends(esquema_bearer),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    """Lê o token do cabeçalho e devolve quem está logado. Regra anti-IDOR:
+    o usuário SEMPRE vem daqui, nunca de um número enviado pelo front."""
+    erro = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Sessão inválida ou expirada. Faça login novamente.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if credenciais is None:
+        raise erro
+    try:
+        id_usuario = ler_token(credenciais.credentials)
+    except (jwt.PyJWTError, KeyError, ValueError):
+        raise erro
+
+    usuario = db.get(Usuario, id_usuario)
+    if usuario is None:
+        raise erro
+    return usuario
