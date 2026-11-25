@@ -37,42 +37,8 @@ export function ago(ts) {
   return `há ${Math.floor(diff / DAY)} d`
 }
 
-// Marcos de recuperação da saúde (valores aproximados, RF07)
-export const MILESTONES = [
-  { ms: 20 * MIN, title: '20 minutos', text: 'Batimentos e pressão começam a voltar ao normal' },
-  { ms: 12 * HOUR, title: '12 horas', text: 'O monóxido de carbono no sangue volta ao normal' },
-  { ms: 2 * DAY, title: '2 dias', text: 'Olfato e paladar começam a melhorar' },
-  { ms: 14 * DAY, title: '2 semanas', text: 'A circulação melhora e caminhar fica mais fácil' },
-  { ms: 90 * DAY, title: '3 meses', text: 'A função dos pulmões aumenta' },
-  { ms: 365 * DAY, title: '1 ano', text: 'O risco de doença do coração cai pela metade' },
-]
-
-// RF06: tempo sem fumar, dinheiro economizado, cigarros a menos
-export function computeStats(me, now) {
-  const logs = me.logs || []
-  const smoked = logs.filter((l) => l.type === 'cigarro')
-  const smokedCount = smoked.reduce((s, l) => s + (l.qty || 1), 0)
-  const last = smoked.length ? Math.max(...smoked.map((l) => l.ts)) : me.startDate
-  const sinceLast = Math.max(0, now - last)
-  const elapsedDays = Math.max(0, (now - me.startDate) / DAY)
-  const avoided = Math.max(0, Math.round(me.cigsPerDay * elapsedDays - smokedCount))
-  const saved = avoided * (me.packPrice / 20)
-  const doneMilestones = MILESTONES.filter((m) => sinceLast >= m.ms).length
-  return {
-    sinceLast,
-    avoided,
-    saved,
-    doneMilestones,
-    journeyDay: Math.floor(elapsedDays) + 1,
-    elapsedDays,
-  }
-}
-
-// RF05: plano de redução gradual do perfil "fuma": 1 cigarro a menos por dia.
-// Dia 1 = consumo - 1; dia 7 = consumo - 7; chega a 0 no dia igual ao consumo (CONTEXTO_IA.md, 4.4)
-export function dailyLimit(me, journeyDay) {
-  return Math.max(0, me.cigsPerDay - journeyDay)
-}
+// Tempo sem fumar, economia, cigarros evitados, plano do dia e marcos de saúde
+// agora são calculados pela API (GET /progresso, /plano/hoje e /conquistas).
 
 // Reduz a foto antes de guardar no aparelho
 export function fileToDataUrl(file, max = 480) {

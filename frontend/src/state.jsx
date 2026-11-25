@@ -3,9 +3,10 @@ import { CAMPOS_DA_API, api, apagarToken, lerToken, salvarToken, usuarioDaApi } 
 import { newId } from './utils.js'
 
 // Camada de dados do app. Já usa a API em:
-//   cadastro (POST /auth/cadastro), login (POST /auth/login) e perfil (GET/PATCH /usuarios/me).
+//   Sprint 1: cadastro, login e perfil (/auth/cadastro, /auth/login, /usuarios/me)
+//   Sprint 2: diário, progresso, plano do dia e marcos (/registros, /progresso, /plano/hoje, /conquistas)
 // Ainda fica no aparelho (localStorage), até as rotas das próximas sprints:
-//   diário (logs), metas do dia, crises e comunidade.
+//   metas do dia (checklist), crises e comunidade.
 // A senha NUNCA é guardada no aparelho: ela vai uma única vez para a API.
 const KEY = 'vsf:v3'
 
@@ -16,7 +17,7 @@ const seedPosts = [
     text: 'Preciso de ajuda, agora a pouco tive o primeiro momento de crise. Passei pelo momento estressante e estou com muita vontade de usar, o que posso fazer?' },
 ]
 
-const LOCAL_PADRAO = { logs: [], goals: { date: '', done: [] }, following: [], supported: [], crises: [] }
+const LOCAL_PADRAO = { goals: { date: '', done: [] }, following: [], supported: [], crises: [] }
 
 function load() {
   try {
@@ -33,6 +34,23 @@ export function AppProvider({ children }) {
   const [db, setDb] = useState(load) // dados que ainda ficam no aparelho
   const [usuario, setUsuario] = useState(null) // dados que vêm da API
   const [carregando, setCarregando] = useState(() => !!lerToken())
+  // Dados da Sprint 2, vindos da API. "recebidoEm" deixa o contador andar sozinho entre uma consulta e outra.
+  const [painel, setPainel] = useState({ progresso: null, plano: null, registros: [], conquistas: [], recebidoEm: 0 })
+
+  const carregarProgresso = async () => {
+    try {
+      const [progresso, plano, registros, conquistas] = await Promise.all([
+        api('/progresso'), api('/plano/hoje'), api('/registros?dias=7'), api('/conquistas'),
+      ])
+      setPainel({ progresso, plano, registros, conquistas, recebidoEm: Date.now() })
+    } catch { /* sem internet: mantém os últimos dados */ }
+  }
+
+  // Sempre que alguém entra, busca o progresso dessa pessoa
+  useEffect(() => {
+    if (usuario) carregarProgresso()
+    else setPainel({ progresso: null, plano: null, registros: [], conquistas: [], recebidoEm: 0 })
+  }, [usuario?.id])
 
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(db)) } catch { /* sem espaço */ }
@@ -69,6 +87,14 @@ export function AppProvider({ children }) {
     db,
     me,
     carregando,
+    ...painel,
+    carregarProgresso,
+
+    // Milissegundos sem fumar agora: o valor da API + o tempo que passou desde a consulta
+    tempoSemFumar(agora) {
+      const p = painel.progresso
+      return p ? p.segundos_sem_fumar * 1000 + Math.max(0, agora - painel.recebidoEm) : 0
+    },
 
     // POST /auth/login
     async login(email, senha) {
@@ -128,9 +154,15 @@ export function AppProvider({ children }) {
       }
     },
 
-    // Futuro: POST /registros (Sprint 2)
-    addLog(entry) {
-      patchLocal({ logs: [...(me.logs || []), { id: newId(), ts: Date.now(), ...entry }] })
+    // POST /registros (cigarro fumado ou vontade vencida) e atualiza a Home
+    async addLog({ type, trigger, nivel }) {
+      try {
+        await api('/registros', { method: 'POST', body: { tipo: type, gatilho: trigger || null, nivel_vontade: nivel ?? null } })
+        await carregarProgresso()
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, msg: e.message }
+      }
     },
 
     toggleGoal(index, today) {
