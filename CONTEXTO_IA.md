@@ -1,6 +1,8 @@
 # Vida Sem Fumaça — Contexto do projeto para IA
 
-> Atualizado em 14/11/2026 · Sprint 1 em andamento
+> Atualizado em 24/11/2026 · Sprints 0, 1 e 2 concluídas · próxima: Sprint 3 (SOS e mapa do SUS)
+>
+> Para instalar e rodar o projeto, veja o `README.md`.
 >
 > Este arquivo é a **fonte da verdade** do projeto. Ele fica na raiz do repositório e deve ser
 > entregue a qualquer IA antes de pedir código. Se algo aqui mudar, a mudança entra no mesmo
@@ -99,6 +101,18 @@ email-validator==2.3.0
 tzdata==2026.6
 ```
 
+Bibliotecas só de desenvolvimento (`backend/requirements-dev.txt`, não vão para o servidor):
+
+```
+-r requirements.txt
+pytest==9.2.0
+httpx2==2.16.2
+```
+
+Testes automáticos: `pytest` dentro de `backend`. Eles usam um banco **temporário** (criado pelo
+`tests/conftest.py`), então nunca mexem no `vida_sem_fumaca.db` de ninguém. Toda regra nova de
+negócio entra com teste.
+
 ---
 
 ## 3. Estrutura de pastas
@@ -106,53 +120,67 @@ tzdata==2026.6
 ```
 projeto/
 ├── CONTEXTO_IA.md            ← este arquivo
-├── README.md
-├── .gitignore                ← ignora .env, .venv, *.db, node_modules, dist
-├── docs/
-│   └── projeto-logico.md     ← modelo lógico do banco (equipe Banco)
+├── README.md                 ← como instalar e rodar (Windows e Linux)
+├── .gitignore                ← ignora .env, .venv, *.db, node_modules, dist, .pytest_cache
+├── docs/                     ← (a criar) projeto-logico.md, modelo lógico do banco (equipe Banco)
 ├── backend/
-│   ├── requirements.txt
+│   ├── requirements.txt      ← bibliotecas da API
+│   ├── requirements-dev.txt  ← + pytest e httpx2 (só para quem desenvolve)
+│   ├── pytest.ini            ← configuração dos testes
 │   ├── .env.example          ← modelo do .env (sem segredos)
 │   ├── .env                  ← NUNCA vai para o GitHub
-│   ├── criar_banco.py        ← cria as tabelas a partir dos modelos
-│   └── app/
-│       ├── __init__.py
-│       ├── main.py           ← cria a API, CORS, inclui os routers, rota /health
-│       ├── database.py       ← engine, SessionLocal, Base, get_db
-│       ├── models.py         ← tabelas (equipe Banco)
-│       ├── schemas.py        ← formatos de entrada/saída (Pydantic)
-│       ├── seguranca.py      ← hash de senha, token JWT, usuario_atual
-│       ├── regras.py         ← regras de negócio (plano, cálculos)
-│       ├── datas.py          ← fuso de São Paulo
-│       └── routers/
-│           ├── auth.py       ← /auth/cadastro, /auth/login            (S1)
-│           ├── usuarios.py   ← /usuarios/me, /usuarios/{id}/seguir    (S1, S4)
-│           ├── progresso.py  ← /progresso, /plano/hoje, /conquistas   (S2)
-│           ├── registros.py  ← /registros                             (S2)
-│           ├── crises.py     ← /crises                                (S3)
-│           ├── unidades.py   ← /unidades                              (S3)
-│           ├── publicacoes.py← /publicacoes e comentários             (S4)
-│           └── conteudos.py  ← /conteudos                             (S4)
+│   ├── criar_banco.py        ← 1º: cria as tabelas a partir dos modelos
+│   ├── dados_iniciais.py     ← 2º: grava os marcos de saúde (pode rodar de novo, não duplica)
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py           ← cria a API, CORS, inclui os routers, rota /health
+│   │   ├── database.py       ← engine, SessionLocal, Base, get_db (liga as FKs no SQLite)
+│   │   ├── models.py         ← as 15 tabelas (equipe Banco)
+│   │   ├── schemas.py        ← formatos de entrada/saída (Pydantic)
+│   │   ├── seguranca.py      ← hash de senha, token JWT, usuario_atual
+│   │   ├── regras.py         ← data_alvo, meta ativa, montar a resposta Usuario
+│   │   ├── calculos.py       ← fórmulas puras da seção 4 (não acessa o banco; testadas)
+│   │   ├── datas.py          ← UTC do banco ↔ dia de São Paulo
+│   │   └── routers/
+│   │       ├── auth.py       ← /auth/cadastro, /auth/login            (S1) ✅
+│   │       ├── usuarios.py   ← /usuarios/me                           (S1) ✅ · /usuarios/{id}/seguir (S4)
+│   │       ├── registros.py  ← /registros                             (S2) ✅
+│   │       ├── progresso.py  ← /progresso, /plano/hoje, /conquistas   (S2) ✅
+│   │       ├── crises.py     ← /crises                                (S3)
+│   │       ├── unidades.py   ← /unidades                              (S3)
+│   │       ├── publicacoes.py← /publicacoes e comentários             (S4)
+│   │       └── conteudos.py  ← /conteudos                             (S4)
+│   └── tests/
+│       ├── conftest.py       ← banco temporário só para os testes
+│       ├── test_calculos.py  ← fórmulas da seção 4
+│       └── test_rotas_s2.py  ← rotas da Sprint 2 de ponta a ponta
 └── frontend/
     ├── index.html
-    ├── .env                  ← VITE_API_URL=http://127.0.0.1:8000 (NUNCA vai para o GitHub)
+    ├── package.json
+    ├── vite.config.js        ← sem "host: true" (ver seção 7)
+    ├── .env.example          ← VITE_API_URL=http://127.0.0.1:8000
+    ├── .env                  ← cópia do .env.example (NUNCA vai para o GitHub)
     ├── public/
     │   ├── manifest.webmanifest
-    │   ├── icon.svg          ← adicionar também icon-192.png e icon-512.png
+    │   ├── icon.svg, icon-192.png, icon-512.png
     │   └── sw.js             ← service worker (offline)
     └── src/
         ├── main.jsx
-        ├── App.jsx           ← troca de telas
-        ├── state.jsx         ← ÚNICO lugar que fala com a API (ou com o localStorage)
-        ├── utils.js          ← formatação, datas, listas de gatilhos e metas
+        ├── App.jsx           ← troca de telas; mostra "Carregando..." enquanto confere o token
+        ├── api.js            ← ÚNICO lugar com fetch: token, erros, de-para do usuário
+        ├── state.jsx         ← dados do app: chama o api.js (ou o localStorage, onde ainda não há rota)
+        ├── utils.js          ← formatação, datas locais, newId, listas de gatilhos e metas
         ├── styles.css
         ├── components/       ← Icons, Avatar, BottomNav, Modal, ReasonCard
         └── screens/          ← Login, Cadastro, Home, Comunidade, Sos, Progresso, Perfil
 ```
 
-Regra do front: **as telas nunca chamam `fetch` diretamente.** Toda comunicação com a API passa
-pelas funções do `state.jsx`. Enquanto uma rota não estiver pronta, a função correspondente
-continua usando o localStorage.
+Regras do front:
+- **As telas nunca chamam `fetch`.** Caminho obrigatório: tela → função do `state.jsx` → `api()` do `api.js`.
+- Os nomes da API (snake_case) só são traduzidos no `api.js` e no `state.jsx` (seção 8).
+- Cálculos de progresso **não** são feitos no front: os números vêm prontos da API. O front só
+  faz o contador "andar" entre uma consulta e outra (`tempoSemFumar`).
+- Enquanto uma rota não existir, a função correspondente continua usando o localStorage.
 
 ---
 
@@ -170,6 +198,9 @@ continua usando o localStorage.
   fuso **America/Sao_Paulo**. Nunca use `toISOString()` no front para descobrir "hoje": isso usa
   UTC e faz o dia virar às 21h.
 - As respostas da API trazem datas em ISO 8601 com fuso: `2026-11-13T10:00:00-03:00`.
+- No back, use sempre as funções do `app/datas.py`: `agora_utc()` para gravar, `para_sp()` para
+  responder, `hoje_sp()` para "hoje" e `inicio_do_dia_em_utc(dia)` para filtrar registros de um dia.
+- No front, "hoje" é `dateKey()`/`todayKey()` do `utils.js` (data local do aparelho).
 
 ### 4.3 Data de início
 - Perfil `fuma`: a data de início é o momento do cadastro.
@@ -182,20 +213,29 @@ continua usando o localStorage.
 - Exemplo com 20 por dia: dia 1 → 19, dia 7 → 13, dia 20 → 0.
 - `data_alvo = data_inicio + (cigarros_por_dia − 1) dias` (dia em que o limite chega a 0),
   calculada no cadastro e salva em `meta.data_alvo`.
+- Mensagem do dia: `"Hoje o limite é 16. Amanhã, 15."`; com limite 1: `"... Amanhã, zero."`;
+  com limite 0: `"Hoje é o seu dia de parar! Você chegou até aqui."`
 - Quando o limite chega a 0, o front sugere trocar para o perfil `parou`.
 
 ### 4.5 Apoio (perfil `parou`)
 - Sem limite diário (`limite_hoje = null`).
-- `GET /plano/hoje` devolve os gatilhos, o motivo e uma mensagem de apoio do dia, baseada num
-  dos gatilhos do usuário.
+- `GET /plano/hoje` devolve os gatilhos, o motivo e **uma dica por dia**, alternando entre os
+  gatilhos do usuário: `gatilho do dia = gatilhos[hoje.toordinal() % quantidade_de_gatilhos]`.
+- As dicas ficam em `DICAS_POR_GATILHO` (`calculos.py`). Gatilho sem dica pronta recebe a mensagem
+  padrão `"<gatilho> é um dos seus gatilhos. Quando ele aparecer, lembre do seu porquê."`
+- Sem gatilhos: `"Lembre do seu porquê: <motivo>"`.
 
 ### 4.6 Cálculos do progresso (os dois perfis)
 - `segundos_sem_fumar` = agora − último registro de `cigarro` (sem nenhum: desde a data de início).
 - `dias_decorridos` = (agora − data de início) em dias, com fração.
 - `cigarros_evitados = máximo(0, arredondar(cigarros_por_dia × dias_decorridos − cigarros_fumados_desde_o_início))`
+- `arredondar` = .5 sempre para cima (`math.floor(x + 0.5)`), igual ao `Math.round` do JS.
+  **Não use `round()` do Python**: ele arredonda 2.5 para 2 e front e back mostrariam números diferentes.
 - `economia = cigarros_evitados × preco_maco ÷ cigarros_por_maco` (2 casas decimais).
-- `vontades_vencidas` = quantidade de registros do tipo `vontade`.
-- Marcos de saúde, atingidos por `segundos_sem_fumar`:
+- `vontades_vencidas` = quantidade de registros do tipo `vontade` desde a data de início.
+- `fumados_hoje` = soma de `quantidade` dos registros `cigarro` desde a meia-noite de São Paulo.
+- Todas essas fórmulas estão em `backend/app/calculos.py`, com testes em `tests/test_calculos.py`.
+- Marcos de saúde (gravados na tabela `conquista` pelo `dados_iniciais.py`), atingidos por `segundos_sem_fumar`:
 
 | Marco | Tempo | Texto |
 | --- | --- | --- |
@@ -205,6 +245,10 @@ continua usando o localStorage.
 | 4 | 2 semanas | A circulação melhora e caminhar fica mais fácil |
 | 5 | 3 meses | A função dos pulmões aumenta |
 | 6 | 1 ano | O risco de doença do coração cai pela metade |
+
+- `data_obtida` de um marco = início da sequência atual sem fumar + tempo do marco. É **calculada**
+  no `GET /conquistas`; no MVP a tabela `usuario_conquista` ainda não é preenchida.
+- Fumou de novo? A sequência recomeça, e os marcos voltam a "não atingido". Isso é intencional.
 
 ### 4.7 Comunidade
 - Categorias: `conquista` ou `ajuda`. O autor aparece só pelo apelido.
@@ -242,8 +286,14 @@ continua usando o localStorage.
 Observações:
 - A quantidade de apoios **não é uma coluna**: é a contagem (`COUNT`) da tabela `apoio`.
 - A quantidade de comentários também é contagem.
-- Dados iniciais (seed): os 6 marcos da seção 4.6 em `conquista`, uma amostra de UBS e CAPS AD
-  de São Paulo em `unidade_saude` e 5 conteúdos educativos em `conteudo`.
+- Toda FK para `usuario` usa `ondelete="CASCADE"`: apagar a conta apaga os dados da pessoa (LGPD).
+  No SQLite isso só funciona porque o `database.py` liga `PRAGMA foreign_keys=ON`.
+- Os valores permitidos (`fuma`/`parou`, notas 1–5 etc.) também são `CheckConstraint` no banco:
+  defesa em profundidade, caso alguma validação do back falhe.
+- Dados iniciais (seed) ficam no `backend/dados_iniciais.py`, que não duplica o que já existe:
+  - ✅ os 6 marcos da seção 4.6 em `conquista` (Sprint 2);
+  - ⏳ amostra de UBS e CAPS AD de São Paulo em `unidade_saude` (Sprint 3, equipe Banco);
+  - ⏳ 5 conteúdos educativos em `conteudo` (Sprint 4).
 - Nunca guardar dados reais de pessoas em testes. Só dados inventados.
 
 ---
@@ -285,6 +335,9 @@ Observações:
 | Fotos | Data URL de imagem já reduzida pelo front, até 700.000 caracteres (~500 KB) |
 
 ### 6.3 Rotas (22)
+
+**Prontas e na `main`:** as 10 rotas das Sprints 0, 1 e 2. As das Sprints 3 e 4 são o combinado
+para as próximas etapas: siga estes nomes e formatos ao criá-las.
 
 | Sprint | Método e rota | Acesso | Resposta |
 | --- | --- | --- | --- |
@@ -402,6 +455,8 @@ Perfil `parou`:
 ```json
 { "tipo": "vontade", "gatilho": "Café", "nivel_vontade": 4 }
 ```
+`quantidade`: no `cigarro` é de 1 a 40 (se não vier, vale 1); na `vontade` a API sempre grava 0.
+`gatilho` é opcional (até 40 caracteres). A data e hora são definidas pela API, nunca pelo front.
 
 **`Registro`**
 ```json
@@ -482,17 +537,29 @@ Entrada de `POST /publicacoes/{id}/comentarios`: `{ "texto": "..." }`
 5. CORS: só as origens listadas em `CORS_ORIGINS` no `.env`. Nunca `"*"`.
 6. Nunca colar `.env`, senhas ou tokens no chat da IA, no Trello ou no WhatsApp.
 7. O repositório é **público**: nada de dados reais de pessoas, nem em testes.
+8. Login errado responde sempre a mesma mensagem, exista ou não o e-mail (evita descobrir quem
+   tem conta).
+9. Antes de todo `git add`: `git status -u`. Não podem aparecer `.env`, `*.db`, `.venv`,
+   `node_modules` nem `.pytest_cache`.
+10. Dependências do front: `npm audit` aponta um alerta no Vite/esbuild que afeta **só o servidor
+    de desenvolvimento**. Nunca rode `npm audit fix --force` sem testar (ele troca versões e pode
+    quebrar o app). Por isso o `vite.config.js` não tem `host: true`: o servidor fica fechado na
+    sua máquina. Para testar no celular, use `npm run dev -- --host` só em Wi-Fi de confiança.
+    A atualização do Vite será um card próprio.
 
 ---
 
 ## 8. Ligação Front ↔ API (de-para)
 
-O `state.jsx` traduz os nomes. O resto do front continua com os nomes atuais.
+O `api.js` (função `usuarioDaApi` e objeto `CAMPOS_DA_API`) e o `state.jsx` traduzem os nomes do
+**usuário**. O resto do front continua com os nomes atuais. Os dados da Sprint 2 (`progresso`,
+`plano`, `registros`, `conquistas`) chegam às telas **com os nomes da API**, sem tradução.
 
 | Front (`state.jsx`) | API | Observação |
 | --- | --- | --- |
-| `login` | `email` | |
-| `name` | `apelido` | Campo novo no cadastro |
+| `email` | `email` | |
+| `id` | `id_usuario` | |
+| `name` | `apelido` | |
 | `senha` | `senha` | Enviada só no cadastro/login; nunca guardada |
 | `perfil` | `perfil` | `fuma` / `parou` |
 | `cigsPerDay` | `cigarros_por_dia` | |
@@ -503,16 +570,24 @@ O `state.jsx` traduz os nomes. O resto do front continua com os nomes atuais.
 | `photo` | `foto_perfil` | |
 | `reminders` | `lembretes` | |
 | `startDate` (ms) | `data_inicio` (ISO) | `new Date(data_inicio).getTime()` |
-| `logs[].type/trigger/qty/ts` | `tipo/gatilho/quantidade/data_hora` | |
-| `posts[].author` | `autor.apelido` (+ `autor.id_usuario`) | |
-| `posts[].type` | `categoria` | |
-| `posts[].apoios/comentarios` | `qtd_apoios/qtd_comentarios` | |
-| `supported`, `following` | `apoiado_por_mim`, `seguindo_autor` | Seguir é por `id_usuario`, não por nome |
-| `computeStats()` | `GET /progresso` | |
-| `dailyLimit()` | `GET /plano/hoje` | Nova regra: 1 a menos por dia |
+| `cigsPerPack` / `targetDate` | `cigarros_por_maco` / `data_alvo` | |
+| `addLog({ type, trigger, nivel })` | `POST /registros` `{tipo, gatilho, nivel_vontade}` | Depois recarrega o painel |
+| `progresso`, `plano`, `registros`, `conquistas` | `GET /progresso`, `/plano/hoje`, `/registros?dias=7`, `/conquistas` | Carregados juntos por `carregarProgresso()` |
+| `tempoSemFumar(agora)` | `segundos_sem_fumar` | Valor da API + tempo desde a consulta, para o contador andar |
+| `posts[].author` | `autor.apelido` (+ `autor.id_usuario`) | Sprint 4 |
+| `posts[].type` | `categoria` | Sprint 4 |
+| `posts[].apoios/comentarios` | `qtd_apoios/qtd_comentarios` | Sprint 4 |
+| `supported`, `following` | `apoiado_por_mim`, `seguindo_autor` | Sprint 4. Seguir é por `id_usuario`, não por nome |
+| `addCrise()` | `POST /crises` | Sprint 3 (hoje grava no aparelho) |
 
-O token fica guardado no aparelho e vai em toda chamada protegida. Resposta 401 → limpar o token e
-voltar para a tela de login.
+**Removidos do front na Sprint 2** (não recriar): `computeStats()`, `dailyLimit()` e `MILESTONES`.
+Esses cálculos agora vêm da API.
+
+Token: fica no `localStorage` com a chave `vsf:token` e vai em toda chamada como
+`Authorization: Bearer ...`. Resposta 401 com token → o `api.js` apaga o token e dispara o evento
+`vsf:sessao-expirada`; o `state.jsx` ouve esse evento e volta para o login.
+Erros: o `api.js` transforma a resposta em mensagem pronta (`detail` da API, campo inválido no 422,
+ou "Não foi possível falar com o servidor" sem internet). A tela só mostra `e.message`.
 
 ---
 
@@ -520,26 +595,26 @@ voltar para a tela de login.
 
 Use esta tabela para conferir se uma funcionalidade está ligada de ponta a ponta.
 
-| RF | Funcionalidade | Tela (front) | Função no `state.jsx` | Rota (back) | Tabelas (banco) | Sprint |
-| --- | --- | --- | --- | --- | --- | --- |
-| RF01 | Login | `Login.jsx` | `login()` | `POST /auth/login` | `usuario` | 1 |
-| RF01, RF02, RF04 | Cadastro em 4 etapas | `Cadastro.jsx` | `register()` | `POST /auth/cadastro` | `usuario`, `meta`, `gatilho_usuario` | 1 |
-| RF11 | Perfil, porquê, lembretes | `Perfil.jsx` | `patchMe()` | `GET`/`PATCH /usuarios/me` | `usuario`, `meta` | 1 |
-| RF03, RF04 | Registrar cigarro ou vontade | `Home.jsx` (modal) | `addLog()` | `POST /registros` | `registro_consumo` | 2 |
-| RF06 | Contador, economia, evitados | `Home.jsx`, `Progresso.jsx` | `computeStats()` → API | `GET /progresso` | `usuario`, `meta`, `registro_consumo` | 2 |
-| RF05 | Limite do dia / apoio | `Home.jsx` | `dailyLimit()` → API | `GET /plano/hoje` | `meta`, `gatilho_usuario`, `registro_consumo` | 2 |
-| RF03 | Gráfico de 7 dias | `Progresso.jsx` | carregar registros | `GET /registros?dias=7` | `registro_consumo` | 2 |
-| RF07 | Marcos de saúde | `Progresso.jsx` | `MILESTONES` → API | `GET /conquistas` | `conquista`, `usuario_conquista` | 2 |
-| RF08 | Botão SOS | `Sos.jsx` | `registrarCrise()` (nova) | `POST /crises` | `registro_crise` | 3 |
-| RF02, RF08 | Porquê no SOS sem internet | `Sos.jsx`, `ReasonCard.jsx` | usa `me` guardado no aparelho | `GET /usuarios/me` | `usuario` | 3 |
-| RF09 | UBS e CAPS AD próximos | `Home.jsx` (card de ajuda) + tela de mapa | `buscarUnidades()` (nova) | `GET /unidades` | `unidade_saude`, `usuario_unidade` | 3 |
-| RF10 | Feed e publicar | `Comunidade.jsx` | `addPost()` | `GET`/`POST /publicacoes` | `publicacao` | 4 |
-| RF10 | Apoiar | `Comunidade.jsx` | `toggleSupport()` | `POST /publicacoes/{id}/apoio` | `apoio` | 4 |
-| RF10 | Comentar | `Comunidade.jsx` | `comentar()` (nova) | `/publicacoes/{id}/comentarios` | `comentario` | 4 |
-| RF10 | Seguir | `Comunidade.jsx` | `toggleFollow()` | `POST /usuarios/{id}/seguir` | `seguidor` | 4 |
-| — | Conteúdos educativos | tela nova | `buscarConteudos()` (nova) | `GET /conteudos` | `conteudo`, `usuario_conteudo` | 4 |
-| RF12, RNF04 | Segurança dos dados | todas | token em toda chamada | `usuario_atual` | `usuario.senha_hash` | 1 |
-| — | Metas de hoje (checklist) | `Home.jsx` | `toggleGoal()` | (sem API) | (sem tabela) | — |
+| RF | Funcionalidade | Tela (front) | Função no `state.jsx` | Rota (back) | Tabelas (banco) | Sprint | Situação |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RF01 | Login | `Login.jsx` | `login()` | `POST /auth/login` | `usuario` | 1 | ✅ |
+| RF01, RF02, RF04 | Cadastro em 4 etapas | `Cadastro.jsx` | `register()` | `POST /auth/cadastro` | `usuario`, `meta`, `gatilho_usuario` | 1 | ✅ |
+| RF11 | Perfil, porquê, lembretes | `Perfil.jsx` | `patchMe()` | `GET`/`PATCH /usuarios/me` | `usuario`, `meta` | 1 | ✅ |
+| RF03, RF04 | Registrar cigarro ou vontade | `Home.jsx` (modal), `Sos.jsx` | `addLog()` | `POST /registros` | `registro_consumo` | 2 | ✅ |
+| RF06 | Contador, economia, evitados | `Home.jsx`, `Progresso.jsx` | `progresso`, `tempoSemFumar()` | `GET /progresso` | `usuario`, `meta`, `registro_consumo`, `conquista` | 2 | ✅ |
+| RF05 | Limite do dia / apoio | `Home.jsx` | `plano` | `GET /plano/hoje` | `meta`, `gatilho_usuario`, `registro_consumo` | 2 | ✅ |
+| RF03 | Gráfico de 7 dias | `Progresso.jsx` | `registros` | `GET /registros?dias=7` | `registro_consumo` | 2 | ✅ |
+| RF07 | Marcos de saúde | `Progresso.jsx` | `conquistas` | `GET /conquistas` | `conquista` | 2 | ✅ |
+| RF08 | Botão SOS (crise) | `Sos.jsx` | `addCrise()` → API | `POST /crises` | `registro_crise` | 3 | ⏳ tela pronta, grava no aparelho |
+| RF02, RF08 | Porquê no SOS sem internet | `Sos.jsx`, `ReasonCard.jsx` | usa `me` guardado no aparelho | `GET /usuarios/me` | `usuario` | 3 | ⏳ |
+| RF09 | UBS e CAPS AD próximos | `Home.jsx` (card de ajuda) + tela de mapa | `buscarUnidades()` (nova) | `GET /unidades` | `unidade_saude`, `usuario_unidade` | 3 | ⏳ |
+| RF10 | Feed e publicar | `Comunidade.jsx` | `addPost()` | `GET`/`POST /publicacoes` | `publicacao` | 4 | ⏳ local |
+| RF10 | Apoiar | `Comunidade.jsx` | `toggleSupport()` | `POST /publicacoes/{id}/apoio` | `apoio` | 4 | ⏳ local |
+| RF10 | Comentar | `Comunidade.jsx` | `comentar()` (nova) | `/publicacoes/{id}/comentarios` | `comentario` | 4 | ⏳ |
+| RF10 | Seguir | `Comunidade.jsx` | `toggleFollow()` | `POST /usuarios/{id}/seguir` | `seguidor` | 4 | ⏳ local |
+| — | Conteúdos educativos | tela nova | `buscarConteudos()` (nova) | `GET /conteudos` | `conteudo`, `usuario_conteudo` | 4 | ⏳ |
+| RF12, RNF04 | Segurança dos dados | todas | token em toda chamada (`api.js`) | `usuario_atual` | `usuario.senha_hash` | 1 | ✅ |
+| — | Metas de hoje (checklist) | `Home.jsx` | `toggleGoal()` | (sem API) | (sem tabela) | — | fica no aparelho |
 
 ---
 
@@ -547,53 +622,62 @@ Use esta tabela para conferir se uma funcionalidade está ligada de ponta a pont
 
 ### Sprints
 
-| Sprint | Datas | Meta |
-| --- | --- | --- |
-| 0 | 06/11 a 12/11 | Fundação: API no ar, banco criado, front abrindo |
-| 1 | 13/11 a 19/11 | Conta, login, cadastro e perfil |
-| 2 | 20/11 a 26/11 | Home com progresso real e registros |
-| 3 | 27/11 a 03/12 | SOS offline e mapa do SUS |
-| 4 | 04/12 a 10/12 | Comunidade e conteúdos |
-| 5 | 11/12 a 17/12 | Deploy na AWS, testes, apresentação |
+| Sprint | Datas | Meta | Situação |
+| --- | --- | --- | --- |
+| 0 | 06/11 a 12/11 | Fundação: API no ar, banco criado, front abrindo | ✅ |
+| 1 | 13/11 a 19/11 | Conta, login, cadastro e perfil | ✅ |
+| 2 | 20/11 a 26/11 | Home com progresso real e registros | ✅ |
+| 3 | 27/11 a 03/12 | SOS offline e mapa do SUS | próxima |
+| 4 | 04/12 a 10/12 | Comunidade e conteúdos | |
+| 5 | 11/12 a 17/12 | Deploy na AWS, testes, apresentação | |
 
 ### Git
-- Ninguém envia direto para a `main`. Cada card do Trello vira uma branch: `s1-back-auth`,
-  `s2-front-home`, `s1-banco-ajustes`.
-- Commits começam pela sprint: `S1: cria rota de login`.
+- Ninguém envia direto para a `main`. Cada card do Trello vira uma branch: `s3-back-crises`,
+  `s3-front-mapa`, `s3-banco-unidades`.
+- Commits começam pela sprint: `S3: cria rota de crises`.
 - Todo código entra por Pull Request revisado por outra equipe (Front revisa Back, Back revisa
   Banco, Banco revisa Front).
 - Antes de todo `git add`: `git status -u`. O `.env` e o `.db` nunca podem aparecer.
+- Antes de começar um card: `git checkout main` e `git pull`, depois `git checkout -b <branch>`.
+- Os caminhos do `git add` são relativos à pasta em que o terminal está: na raiz use
+  `git add backend/app/...`; dentro de `backend` use `git add app/...`.
+- Card de back só vai para revisão com `pytest` passando.
 
 ### Definição de pronto (todo card)
 - [ ] Funciona no celular
 - [ ] Revisado por outra pessoa no Pull Request
 - [ ] Nenhuma senha ou chave no código
 - [ ] Testado no `/docs` (back) ou no navegador em modo celular (front)
+- [ ] Back: `pytest` passando, com teste novo para a regra nova
 - [ ] Nomes conferidos com este arquivo
+- [ ] Este arquivo atualizado no mesmo PR, se o contrato mudou
 
 ### Checklist de integração (antes de pedir revisão)
 - [ ] Os nomes de rotas, campos e tabelas são exatamente os deste arquivo
 - [ ] A rota aparece no `/docs` e responde no formato da seção 6.4
 - [ ] Os campos usados existem na tabela da seção 5
-- [ ] O front chama a rota pelo `state.jsx`, com os nomes da seção 8
+- [ ] O front chama a rota pelo `state.jsx` → `api.js`, com os nomes da seção 8
 - [ ] Teste de ponta a ponta: ação na tela → resposta no `/docs` → linha nova no banco (SQLite Viewer)
 
 ---
 
 ## 11. Situação atual e pendências
 
-**Feito:** documento do PI, protótipos no Figma, Trello, repositório, `.gitignore`,
-`database.py`, protótipo navegável do front (salvando no aparelho), back-end da Sprint 1 escrito
-e testado (cadastro, login, `/usuarios/me`).
+**Feito (na `main`):**
+- Sprint 0: repositório, `.gitignore`, API com `/health`, `database.py`, front abrindo.
+- Sprint 1: `models.py` com as 15 tabelas, `criar_banco.py`, segurança (bcrypt, JWT,
+  `usuario_atual`), cadastro, login e perfil ligados de ponta a ponta. Bugs do front corrigidos
+  (`newId` no lugar de `crypto.randomUUID`, data local no `todayKey`, contraste, ícones PNG).
+- Sprint 2: `calculos.py`, rotas `/registros`, `/progresso`, `/plano/hoje` e `/conquistas`,
+  `dados_iniciais.py` com os marcos, testes automáticos (`pytest`), Home, Progresso e diário do
+  front lendo da API (`api.js`).
 
-**Pendências da Sprint 1:**
-- Banco: aplicar as mudanças do modelo (seção 5) no `models.py`, começando por `usuario`.
-- Back: subir `seguranca.py`, `schemas.py`, `regras.py`, `datas.py` e os routers `auth` e `usuarios`.
-- Front: login por e-mail, campo apelido, senha com 8+, nova regra do plano, ligar
-  `login()`, `register()` e `patchMe()` na API, guardar o token.
-- Front (bugs): `crypto.randomUUID` não funciona pelo IP da rede local (usar gerador próprio);
-  `todayKey()` usa UTC (usar a data local); contraste do texto branco na etapa 1 do cadastro;
-  ícones PNG 192/512 para o iPhone.
+**Pendências:**
+- Banco: `docs/projeto-logico.md`; atualizar o DER e o Quadro 8 do documento do PI (tabelas
+  `apoio` e `seguidor`); preparar a amostra de UBS e CAPS AD (dados públicos, sem pessoas) para a Sprint 3.
+- Back (Sprint 3): `POST /crises`, `GET /unidades` com distância, `POST /unidades/{id}/salvar`.
+- Front (Sprint 3): `addCrise()` chamando a API; tela de mapa com as unidades.
+- Card próprio: atualizar o Vite (alerta do `npm audit`), testando antes de subir.
 
 **Decisões em aberto:**
 - Trocar a navegação do front para `react-router` (o botão "voltar" do celular hoje fecha o app).
@@ -607,22 +691,28 @@ Cole este arquivo inteiro e depois um destes pedidos:
 
 **Banco**
 ```
-Siga o CONTEXTO_IA.md acima. Este é o meu models.py atual: [cole].
-Tarefa: deixar o models.py igual à seção 5. Antes do código, liste as diferenças.
+Siga o CONTEXTO_IA.md acima. Este é o meu dados_iniciais.py atual: [cole].
+Tarefa: [ex.: adicionar uma amostra de UBS e CAPS AD de São Paulo em unidade_saude], com os campos
+da seção 5, sem duplicar o que já existe (igual à função gravar_marcos). Use só dados públicos
+das unidades, nunca dados de pessoas. Antes do código, liste o que vai criar e alterar.
 ```
 
 **Back-end**
 ```
-Siga o CONTEXTO_IA.md acima. Estes são os arquivos atuais: [cole schemas.py, regras.py e o router].
-Tarefa: criar a rota [ex.: GET /progresso] exatamente como nas seções 4 e 6.
-Use usuario_atual para identificar o usuário. Antes do código, liste o que vai criar e alterar.
+Siga o CONTEXTO_IA.md acima. Estes são os arquivos atuais: [cole schemas.py, models.py e um router
+pronto parecido, ex.: registros.py].
+Tarefa: criar a rota [ex.: POST /crises] exatamente como nas seções 4 e 6.
+Use usuario_atual para identificar o usuário e as funções do datas.py para datas.
+Fórmulas vão no calculos.py. Inclua os testes em backend/tests (pytest, usando a fixture "cliente"
+do conftest.py). Antes do código, liste o que vai criar e alterar.
 ```
 
 **Front-end**
 ```
-Siga o CONTEXTO_IA.md acima. Estes são os arquivos atuais: [cole state.jsx e a tela].
-Tarefa: trocar a função [ex.: login()] para chamar a rota da seção 6, traduzindo os nomes pela seção 8.
-Não use fetch dentro das telas. Antes do código, liste as diferenças.
+Siga o CONTEXTO_IA.md acima. Estes são os arquivos atuais: [cole api.js, state.jsx e a tela].
+Tarefa: trocar a função [ex.: addCrise()] do state.jsx para chamar a rota da seção 6 usando api()
+do api.js, traduzindo os nomes pela seção 8. Não use fetch dentro das telas.
+Antes do código, liste as diferenças.
 ```
 
 **Conferência de integração (qualquer equipe)**
