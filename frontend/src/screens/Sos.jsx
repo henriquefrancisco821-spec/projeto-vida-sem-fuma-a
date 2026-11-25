@@ -32,7 +32,8 @@ export default function Sos({ go }) {
   // Futuro: POST /crises + POST /registros (CONTEXTO_IA.md, seção 6.4)
   const salvar = (intensidade) => {
     addCrise({ intensidade, estrategia, resultado })
-    addLog({ type: resultado === 'fumou' ? 'cigarro' : 'vontade', trigger: '' })
+    // POST /registros: a vontade vencida leva a intensidade junto (nivel_vontade)
+    addLog({ type: resultado === 'fumou' ? 'cigarro' : 'vontade', trigger: '', nivel: resultado === 'venceu' ? intensidade : undefined })
     go('home')
   }
 
