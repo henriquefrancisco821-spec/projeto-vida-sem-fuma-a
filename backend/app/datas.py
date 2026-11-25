@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 # Regra do contrato: o banco guarda em UTC, mas "hoje" é sempre o dia de São Paulo
@@ -17,3 +17,10 @@ def para_sp(momento_utc: datetime) -> datetime:
 
 def hoje_sp() -> date:
     return datetime.now(FUSO_SP).date()
+
+
+def inicio_do_dia_em_utc(dia: date) -> datetime:
+    """Meia-noite de um dia de São Paulo, no horário do banco (UTC, sem fuso).
+    Ex.: o dia 20/11 em São Paulo começa às 03:00 UTC. Serve para filtrar "os registros de hoje"."""
+    meia_noite_sp = datetime.combine(dia, time.min, tzinfo=FUSO_SP)
+    return meia_noite_sp.astimezone(timezone.utc).replace(tzinfo=None)
